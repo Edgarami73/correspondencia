@@ -1,0 +1,395 @@
+# SISTEMA DE CONTROL GLOBAL DE CORRESPONDENCIA - SCARE
+## Arquitectura y Documentación Completa
+
+---
+
+## 📋 ÍNDICE
+
+1. [Visión General del Sistema](#visión-general)
+2. [Arquitectura Técnica](#arquitectura-técnica)
+3. [Componentes del Sistema](#componentes)
+4. [Flujos de N8N](#flujos-n8n)
+5. [Base de Datos](#base-de-datos)
+6. [Interfaces de Usuario](#interfaces)
+7. [Plan de Implementación](#implementación)
+
+---
+
+## 🎯 VISIÓN GENERAL DEL SISTEMA
+
+### Objetivo
+Crear un sistema automatizado de registro y seguimiento de correspondencia para SCARE, que reemplace el sistema obsoleto actual y unifique el proceso a nivel nacional.
+
+### Alcance - Fase 1
+- **Registro automático** de correspondencia con número de radicado único
+- **Notificaciones automáticas** por correo electrónico
+- **Trazabilidad completa** de cada documento
+- **Reportes** exportables en Excel
+- **Gestión de estados** de la correspondencia
+- **Almacenamiento de evidencias** fotográficas
+
+### Usuarios del Sistema
+- **Nivel Central**: 3 usuarios (Bogotá - CURF)
+- **Nivel Nacional**: 21 usuarios (sedes en todo el país)
+- **Total**: 24 usuarios aproximadamente
+
+---
+
+## 🏗️ ARQUITECTURA TÉCNICA
+
+### Stack Tecnológico
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    CAPA DE USUARIO                       │
+│  - Google Forms (Registro de correspondencia)           │
+│  - Microsoft Forms (Panel de feedback destinatarios)    │
+│  - Email (Notificaciones)                               │
+└─────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────┐
+│                  CAPA DE ORQUESTACIÓN                    │
+│                        N8N                               │
+│  - Workflow 1: Registro de Correspondencia              │
+│  - Workflow 2: Notificaciones                           │
+│  - Workflow 3: Feedback de Destinatarios                │
+│  - Workflow 4: Gestión de Estados                       │
+│  - Workflow 5: Reportes y Consultas                     │
+└─────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────┐
+│                  CAPA DE DATOS                           │
+│  - Excel en OneDrive (Base de datos principal)          │
+│  - SharePoint (Almacenamiento de evidencias)            │
+│  - Active Directory (Directorio de usuarios)            │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Tecnologías Utilizadas
+- **N8N**: Plataforma de automatización (self-hosted o cloud)
+- **Office 365**: Excel Online, OneDrive, Outlook
+- **Google Forms**: Interfaz de captura de datos
+- **Microsoft Forms**: Panel de feedback
+- **SharePoint**: Almacenamiento de archivos
+- **Active Directory**: Gestión de usuarios
+
+---
+
+## 🧩 COMPONENTES DEL SISTEMA
+
+### 1. Base de Datos Principal (Excel)
+**Archivo**: `BD_Correspondencia_SCARE.xlsx`
+**Ubicación**: OneDrive compartido
+
+**Hojas del archivo**:
+- **Hoja 1: Registros_2024** (se crea nueva hoja cada año)
+- **Hoja 2: Configuracion**
+- **Hoja 3: Usuarios**
+- **Hoja 4: Sedes**
+- **Hoja 5: Log_Auditoria**
+
+### 2. Formulario de Registro
+**Google Forms** con campos dinámicos que alimenta N8N
+
+### 3. Sistema de Notificaciones
+**Correo electrónico** desde infraestructura@scare.org.co
+
+### 4. Panel de Feedback
+**Microsoft Forms** para respuestas de destinatarios
+
+### 5. Almacenamiento de Evidencias
+**Carpeta SharePoint** organizada por año y mes
+
+---
+
+## 🔄 FLUJOS DE N8N
+
+### Flujo 1: Registro de Correspondencia Principal
+**Trigger**: Nuevo registro en Google Forms
+
+**Pasos**:
+1. Recibir datos del formulario
+2. Validar información requerida
+3. Generar número de radicado único
+4. Consultar usuario en Active Directory
+5. Guardar registro en Excel
+6. Subir evidencias a SharePoint
+7. Enviar notificación al destinatario
+8. Registrar en log de auditoría
+
+### Flujo 2: Gestión de Notificaciones
+**Trigger**: Nuevo registro en BD_Correspondencia
+
+**Pasos**:
+1. Obtener datos del destinatario
+2. Generar HTML personalizado del correo
+3. Adjuntar evidencias desde SharePoint
+4. Enviar correo con link a panel de feedback
+5. Marcar notificación como enviada
+6. Programar recordatorio si no hay respuesta (48hrs)
+
+### Flujo 3: Procesamiento de Feedback
+**Trigger**: Respuesta en Microsoft Forms (feedback)
+
+**Pasos**:
+1. Recibir respuesta del destinatario
+2. Validar número de radicado
+3. Actualizar estado en Excel
+4. Procesar decisión del destinatario:
+   - Si "Almacenar en sede": Actualizar ubicación
+   - Si "Entregar a otro usuario": Crear nueva notificación
+   - Si "Eliminar": Registrar autorización
+5. Enviar confirmación al destinatario
+6. Actualizar log de auditoría
+
+### Flujo 4: Gestión de Estados y Entregas
+**Trigger**: Webhook manual o programado
+
+**Pasos**:
+1. Verificar correspondencias en custodia
+2. Identificar pendientes de entrega
+3. Generar alertas por vencimientos
+4. Actualizar estados según acciones
+5. Notificar a administradores
+
+### Flujo 5: Reportes y Consultas
+**Trigger**: Webhook bajo demanda
+
+**Pasos**:
+1. Recibir parámetros de consulta
+2. Filtrar datos en Excel
+3. Generar archivo Excel con resultados
+4. Enviar por correo al solicitante
+
+---
+
+## 💾 ESTRUCTURA DE BASE DE DATOS
+
+### Tabla Principal: Registros_[AÑO]
+
+| Campo | Tipo | Descripción | Obligatorio |
+|-------|------|-------------|-------------|
+| ID | Número | ID único auto-incremental | Sí |
+| No_Radicado | Texto | Formato: AAAA-NNNN | Sí |
+| Fecha_Recepcion_Fisica | Fecha | Cuando llegó el documento | Sí |
+| Hora_Recepcion_Fisica | Hora | Hora de llegada | Sí |
+| Fecha_Radicacion | FechaHora | Cuando se registró en sistema | Sí (auto) |
+| Hora_Radicacion | Hora | Hora de registro | Sí (auto) |
+| Nombre_Remitente | Texto | Quien envía | Sí |
+| Nombre_Destinatario | Texto | A quién va dirigido | Sí |
+| Nombre_Notificado | Texto | Quién recibe notificación | Sí |
+| Email_Notificado | Email | Correo del notificado | Sí |
+| Area_Notificado | Texto | Área/Departamento | Sí (auto) |
+| Cargo_Notificado | Texto | Cargo del notificado | Sí (auto) |
+| Sede | Lista | Sede donde se recibe | Sí |
+| Descripcion_Correspondencia | Texto largo | Detalle del contenido | Sí |
+| Tiene_Guia | Sí/No | Si tiene número de guía | Sí |
+| Numero_Guia | Texto | Número de guía si aplica | Condicional |
+| Tipo_Correspondencia | Lista | Física/Digital | Sí |
+| URL_Evidencias | Texto | Links a SharePoint | No |
+| Fecha_Notificacion | FechaHora | Cuando se notificó | Sí (auto) |
+| Estado | Lista | Custodia/Entregado/Eliminado | Sí (auto) |
+| Respuesta_Destinatario | Lista | Opciones de feedback | No |
+| Fecha_Respuesta_Destinatario | FechaHora | Cuando respondió | No |
+| Usuario_Delegado | Texto | Si delega a otro | No |
+| Conservar_En_Sede | Sí/No | Si se almacena | No |
+| Lugar_Almacenamiento | Lista | CURF/Sede/Bodega/NA | No |
+| Fecha_Entrega_Fisica | Fecha | Cuando se entregó | No |
+| Hora_Entrega_Fisica | Hora | Hora de entrega | No |
+| Nombre_Quien_Recibe | Texto | Quién recibió físicamente | No |
+| Observaciones_Eliminacion | Texto largo | Justificación si elimina | No |
+| Usuario_Registra | Texto | Quien crea el registro | Sí (auto) |
+| Fecha_Ultima_Modificacion | FechaHora | Última actualización | Sí (auto) |
+| Usuario_Modifica | Texto | Quien modificó | No |
+
+### Tabla: Configuracion
+
+| Campo | Valor |
+|-------|-------|
+| Año_Actual | 2024 |
+| Ultimo_Consecutivo | 0001 |
+| Email_Notificaciones | infraestructura@scare.org.co |
+| Dias_Custodia_Max | 8 |
+| URL_SharePoint_Evidencias | [URL] |
+
+### Tabla: Sedes
+
+| Codigo_Sede | Nombre_Sede | Ciudad | Tiene_CURF |
+|-------------|-------------|---------|------------|
+| BOG-01 | Bogotá - Central | Bogotá | Sí |
+| MED-01 | Medellín | Medellín | No |
+| CAL-01 | Cali | Cali | No |
+| ... | ... | ... | ... |
+
+### Tabla: Log_Auditoria
+
+| Fecha_Hora | Usuario | Accion | No_Radicado | Detalle |
+|------------|---------|--------|-------------|---------|
+| 2024-01-15 10:30 | usuario@scare.org.co | CREACION | 2024-0001 | Registro creado |
+| 2024-01-15 10:31 | sistema | NOTIFICACION | 2024-0001 | Email enviado |
+
+---
+
+## 👥 INTERFACES DE USUARIO
+
+### 1. Formulario de Registro (Google Forms)
+
+**Secciones**:
+
+**A. Información de Recepción**
+- Fecha de recepción física (calendario)
+- Hora de recepción física (selector)
+- Sede donde se recibe (lista desplegable)
+
+**B. Datos del Remitente**
+- Nombre del remitente (texto libre)
+- ¿Tiene número de guía? (Sí/No)
+- Número de guía (condicional, aparece si dice Sí)
+
+**C. Datos del Destinatario**
+- Nombre del destinatario (texto libre)
+- A quién se le notifica (búsqueda en Active Directory o lista)
+- Descripción de la correspondencia (texto largo)
+
+**D. Evidencias**
+- Adjuntar fotografías/archivos (carga múltiple)
+
+### 2. Panel de Feedback (Microsoft Forms)
+
+**Pregunta 1**: Ingrese su número de radicado
+**Pregunta 2**: ¿Qué acción desea realizar con esta correspondencia?
+- Almacenar temporalmente en sede (paso a recogerla)
+- Solicitar entrega a otro usuario
+- Autorizo eliminación de correspondencia física
+
+**Condicional si elige "Entregar a otro usuario"**:
+- Nombre del usuario delegado (búsqueda)
+- Observaciones
+
+**Condicional si elige "Autorizo eliminación"**:
+- Justificación (texto obligatorio)
+- Confirmación (checkbox)
+
+### 3. Plantilla de Email - Notificación
+
+```
+Asunto: [CORRESPONDENCIA] Nueva correspondencia recibida - Radicado {No_Radicado}
+
+Hola {Nombre_Notificado},
+
+Te notificamos que hemos recibido correspondencia dirigida a ti:
+
+📋 DETALLES DE LA CORRESPONDENCIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Número de radicado: {No_Radicado}
+• Fecha de recepción: {Fecha_Recepcion_Fisica}
+• Hora de recepción: {Hora_Recepcion_Fisica}
+• Remitente: {Nombre_Remitente}
+• Descripción: {Descripcion_Correspondencia}
+• Sede: {Sede}
+• Lugar de almacenamiento: {Lugar_Almacenamiento}
+
+📸 EVIDENCIAS
+{Enlaces a fotografías adjuntas}
+
+⚡ ACCIÓN REQUERIDA
+Por favor, ingresa al siguiente enlace para indicarnos qué hacer con esta correspondencia:
+
+👉 [GESTIONAR MI CORRESPONDENCIA]
+{URL_Panel_Feedback}?radicado={No_Radicado}
+
+⏰ IMPORTANTE
+• Si decides almacenar en sede, tienes máximo 8 días para recogerla
+• Si no respondes en 48 horas, te enviaremos un recordatorio
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Este es un mensaje automático del Sistema de Correspondencia SCARE.
+Para consultas, contacta a infraestructura@scare.org.co
+```
+
+---
+
+## 📅 PLAN DE IMPLEMENTACIÓN
+
+### Fase 1: Preparación (Semana 1)
+- [ ] Crear cuenta N8N (cloud o self-hosted)
+- [ ] Configurar conexiones Office 365
+- [ ] Crear archivo Excel en OneDrive
+- [ ] Crear carpeta SharePoint para evidencias
+- [ ] Crear Google Form de registro
+- [ ] Crear Microsoft Form de feedback
+
+### Fase 2: Desarrollo Flujos Básicos (Semana 2)
+- [ ] Implementar Flujo 1: Registro básico
+- [ ] Implementar generación de radicados
+- [ ] Implementar Flujo 2: Notificaciones
+- [ ] Pruebas internas
+
+### Fase 3: Funcionalidades Avanzadas (Semana 3)
+- [ ] Implementar Flujo 3: Feedback
+- [ ] Implementar carga de evidencias
+- [ ] Implementar consultas Active Directory
+- [ ] Pruebas de integración
+
+### Fase 4: Gestión y Reportes (Semana 4)
+- [ ] Implementar Flujo 4: Estados
+- [ ] Implementar Flujo 5: Reportes
+- [ ] Crear dashboard de consulta
+- [ ] Pruebas finales
+
+### Fase 5: Piloto y Despliegue (Semana 5)
+- [ ] Prueba piloto con 3 usuarios
+- [ ] Migración de datos históricos
+- [ ] Capacitación usuarios
+- [ ] Despliegue nacional
+- [ ] Desactivación sistema antiguo
+
+---
+
+## 📊 MÉTRICAS DE ÉXITO
+
+### Indicadores Clave
+1. **Tiempo de registro**: < 3 minutos por correspondencia
+2. **Tasa de notificación**: 100% de correspondencias notificadas
+3. **Tiempo de respuesta**: < 24 horas promedio
+4. **Trazabilidad**: 100% de correspondencias rastreables
+5. **Satisfacción de usuario**: > 80% satisfechos
+
+### Reportes Automáticos
+- Correspondencia recibida por sede (mensual)
+- Tiempos promedio de respuesta
+- Correspondencia en custodia
+- Correspondencia vencida (>8 días)
+
+---
+
+## 🔒 SEGURIDAD Y AUDITORÍA
+
+### Controles de Seguridad
+1. Autenticación mediante Office 365
+2. Log completo de todas las acciones
+3. Campos no modificables después del registro
+4. Trazabilidad de cambios
+5. Backup automático del Excel
+
+### Auditoría
+- Registro de cada acción en log
+- Historial de modificaciones
+- Identificación de usuario en cada operación
+
+---
+
+## 📞 SOPORTE Y CONTACTO
+
+**Administrador del Sistema**: Infraestructura SCARE
+**Email**: infraestructura@scare.org.co
+**Documentación**: Este archivo y flujos adjuntos
+
+---
+
+**Versión**: 1.0
+**Fecha**: Febrero 2024
+**Autor**: Equipo de Desarrollo SCARE
